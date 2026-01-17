@@ -8,8 +8,7 @@ from flask import Flask, render_template, request, jsonify
 app = Flask(__name__)
 
 # --- KONFIGURASI ---
-OPENROUTER_API_KEY = "YOUR_OPENROUTER_API_KEY"
-# Deteksi apakah berjalan di Cloud (Streamlit Share)
+OPENROUTER_API_KEY = "ISI_API_KEY_OPENROUTER_ANDA"
 IS_CLOUD = os.getenv("STREAMLIT_SERVER_PORT") is not None 
 
 client = OpenAI(
@@ -17,25 +16,21 @@ client = OpenAI(
   api_key=OPENROUTER_API_KEY,
 )
 
+# Global variable untuk proses streamlit
 streamlit_process = None
 
 def setup_streamlit_env():
-    """Menyiapkan folder secrets hanya jika di lokal untuk menghindari Permission Error di Cloud"""
+    """Menyiapkan folder secrets jika berjalan di lokal"""
     if IS_CLOUD:
-        print("Running on Cloud: Skipping manual secrets creation.")
         return
-
     try:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         st_dir = os.path.join(base_dir, ".streamlit")
         os.makedirs(st_dir, exist_ok=True)
-        
         with open(os.path.join(st_dir, "secrets.toml"), "w", encoding="utf-8") as f:
             f.write(f'OPENROUTER_API_KEY = "{OPENROUTER_API_KEY}"\n')
-            f.write('SYSTEM_PROMPT = "Anda adalah asisten virtual ahli."\n')
-        print("Local Environment: .streamlit/secrets.toml updated.")
     except Exception as e:
-        print(f"Error setting up local env: {e}")
+        print(f"Error setup env: {e}")
 
 def kill_current_streamlit():
     global streamlit_process
@@ -80,7 +75,7 @@ def index():
 
             kill_current_streamlit()
             
-            # Jalankan Streamlit
+            # Menjalankan Streamlit secara headless
             cmd = ["streamlit", "run", "generated_web.py", "--server.port", "8501", "--server.headless", "true"]
             streamlit_process = subprocess.Popen(cmd, preexec_fn=None if os.name == 'nt' else os.setpgrp)
             
@@ -98,9 +93,11 @@ def stop_web():
 
 if __name__ == '__main__':
     setup_streamlit_env()
-    # Inisialisasi file agar tidak error saat start
+    
+    # Inisialisasi file awal
     if not os.path.exists("generated_web.py"):
-        with open("generated_web.py", "w") as f:
+        with open("generated_web.py", "w", encoding="utf-8") as f:
             f.write("import streamlit as st\nst.title('AI Web Builder Ready')")
             
-    app.run(debug=True, port=5000)
+    # PERBAIKAN UTAMA: Mematikan use_reloader dan debug untuk menghindari error signal
+    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
